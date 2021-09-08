@@ -65,7 +65,7 @@ use extractors::payload::PayloadConfig;
 pub fn configure_data(config: &mut web::ServiceConfig, data: Data) {
     let http_payload_size_limit = data.http_payload_size_limit();
     config
-        .data(data.clone())
+        .app_data(web::Data::new(data.clone()))
         .app_data(data)
         .app_data(
             web::JsonConfig::default()
@@ -162,10 +162,10 @@ macro_rules! create_app {
                     .allow_any_method()
                     .max_age(86_400), // 24h
             )
-            .wrap(middleware::Logger::default())
             .wrap(middleware::Compress::default())
             .wrap(middleware::NormalizePath::new(
                 middleware::TrailingSlash::Trim,
             ))
+            .wrap(middleware::Logger::default())
     }};
 }
