@@ -8,7 +8,7 @@ use indexmap::IndexMap;
 use meilisearch_tokenizer::{Analyzer, AnalyzerConfig, Token};
 use milli::{AscDesc, FieldId, FieldsIdsMap, FilterCondition, MatchingWords, UserError};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use crate::index::error::FacetError;
 use crate::index::IndexError;
@@ -193,7 +193,7 @@ impl Index {
         let documents_iter = self.documents(&rtxn, documents_ids)?;
 
         for (_id, obkv) in documents_iter {
-            let document = make_document(&to_retrieve_ids, &fields_ids_map, obkv)?;
+            let mut document = make_document(&to_retrieve_ids, &fields_ids_map, obkv)?;
 
             let matches_info = query
                 .matches
@@ -206,6 +206,10 @@ impl Index {
                 &matching_words,
                 &formatted_options,
             )?;
+
+            if let Some(sort) = query.sort.as_ref() {
+                insert_geo_distance(&sort, &mut document);
+            }
 
             let hit = SearchHit {
                 document,
@@ -244,6 +248,36 @@ impl Index {
             exhaustive_facets_count,
         };
         Ok(result)
+    }
+}
+
+fn insert_geo_distance(sorts: &[String], document: &mut Document) {
+    if let Some((sort, position)) = sorts
+        .iter()
+        .find_map(|sort| sort.find("_geoPoint(").map(|index| (sort, index)))
+    {
+        let coords = sort
+            .chars()
+            .skip(position)
+            .take_while(|c| (*c) != ')')
+            .collect::<String>();
+        let coords = coords
+            .trim_start_matches("_geoPoint(")
+            .trim_end_matches(')')
+            .split(',')
+            .map(|val| val.trim().parse())
+            .collect::<std::result::Result<Vec<f64>, _>>()
+            .unwrap_or_default();
+        if coords.len() != 2 {
+            // TODO: TAMO: milli encountered an internal error, what do we want to do?
+            return;
+        }
+        let base = [coords[0], coords[1]];
+        let geo_point = &document.get("_geo").unwrap_or(&json!(null));
+        if let Some((lat, lng)) = geo_point["lat"].as_f64().zip(geo_point["lng"].as_f64()) {
+            let distance = milli::distance_between_two_points(&base, &[lat, lng]);
+            document.insert("_geoDistance".to_string(), json!(distance.round()));
+        }
     }
 }
 
