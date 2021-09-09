@@ -1685,7 +1685,7 @@ dependencies = [
 [[package]]
 name = "milli"
 version = "0.13.0"
-source = "git+https://github.com/meilisearch/milli.git?tag=v0.13.0#b22aac92ace9f64e0323023d1e9bf5ed5a79e58a"
+source = "git+https://github.com/meilisearch/milli.git?branch=fix-word-prefix-level-position-memory-usage#26deeb45a352d62c7dd44c866e8c9213b7f52e48"
 dependencies = [
  "bstr",
  "byteorder",
